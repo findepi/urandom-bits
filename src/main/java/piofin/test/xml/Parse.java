@@ -27,10 +27,9 @@ public class Parse {
 
 				TransformerFactory transformerFactory = TransformerFactory.newInstance();
 				transformerFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true); // does not help in Java 7
-
 				Transformer transformer = transformerFactory.newTransformer();
 
-				// insecure by default:
+				// StreamSource is insecure by default:
 				// Source source = new StreamSource(new StringReader(xxeXml));
 
 				// Source configured to be secure:
