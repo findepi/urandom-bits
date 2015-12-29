@@ -1,6 +1,9 @@
 import java.util.List;
 import java.util.function.Predicate;
 
+/*
+ * https://bugs.eclipse.org/bugs/show_bug.cgi?id=484963
+ */
 public class Inferrr {
 	public List<? extends Predicate<? super String>> getStringAcceptingPredicates() {
 		return java.util.Arrays.asList(
