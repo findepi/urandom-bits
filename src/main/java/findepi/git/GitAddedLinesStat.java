@@ -1,21 +1,19 @@
 package findepi.git;
 
-import static com.google.common.base.MoreObjects.firstNonNull;
-import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Integer.parseInt;
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.charset.Charset;
+import java.text.Normalizer;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.google.common.base.Strings;
 
 /**
  * @author findepi <piotr.findeisen@syncron.com>
@@ -24,70 +22,100 @@ import com.google.common.base.Strings;
 public class GitAddedLinesStat {
 
 	public static void main(String[] args) throws Exception {
-		if (args.length != 1) {
-			System.err.printf("Usage java %s <path to git repo>\n", GitAddedLinesStat.class.getName());
+		if (args.length != 2) {
+			System.err.printf("Usage java %s <path to git repo> <files pattern>\n",
+					GitAddedLinesStat.class.getName());
 			System.exit(1);
 		}
 
 		String pathToGitRepo = args[0];
+		Pattern interestingFilePattern = Pattern.compile(args[1]);
+
+		Map<String, Long> linesByAuthor = new HashMap<>();
 
 		ProcessBuilder processBuilder = new ProcessBuilder(
 				"git", "-C", pathToGitRepo,
-				"log", "--shortstat", "--pretty=format:%h:%an")
+				"log", "--numstat", "--pretty=format:COMMIT %h:%an")
 						.redirectOutput(Redirect.PIPE);
 
 		Process process = processBuilder.start();
 		try {
 
-			Map<String, Integer> linesByAuthor = new HashMap<>();
-			Pattern insertionsDeletionsPattern = Pattern.compile(
-					" *\\d+ files? changed(, (?<insertions>\\d+) insertion\\S*)?(, (?<deletions>\\d+) deletion\\S*)?");
-			Pattern hashAndAuthorPattern = Pattern.compile("(?<hash>[a-f0-9]+):(?<author>.*)");
+			Pattern commitLinePattern = Pattern.compile("COMMIT (?<hash>[a-f0-9]+):(?<author>.*)");
+			Pattern fileStatPattern = Pattern.compile("(?<added>\\d+|-)\\s+(?<removed>\\d+|-)\\s+(?<path>.*)");
 
 			// We really don't have to close reader as the input stream will be closed by Process.destroy
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), UTF_8))) {
+			try (BufferedReader reader = new BufferedReader(
+					new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
+
+				String currentAuthor = null;
+
 				while (true) {
-					String hashAndAuthor = reader.readLine();
-					checkState(!Strings.isNullOrEmpty(hashAndAuthor), "author empty");
-					String author = hashAndAuthor.replaceFirst("^[^:]+:", "");
-
-					reader.mark(1024);
-					String stats = reader.readLine();
-					checkState(!Strings.isNullOrEmpty(stats), "stats empty");
-
-					Matcher matcher = insertionsDeletionsPattern.matcher(stats);
-					if (!matcher.matches()) {
-						// let's assume no stats here
-						checkState(hashAndAuthorPattern.matcher(stats).matches(), "neither stats nor author: %s",
-								stats);
-						reader.reset();
-						continue;
-					}
-
-					int insertions = parseInt(firstNonNull(matcher.group("insertions"), "0"));
-					int deletions = parseInt(firstNonNull(matcher.group("deletions"), "0"));
-					int delta = insertions - deletions;
-
-					Integer authorSoFar = linesByAuthor.getOrDefault(author, 0);
-					linesByAuthor.put(author, authorSoFar + delta);
-
-					String next = reader.readLine();
-					if (next == null) {
+					String line = reader.readLine();
+					if (line == null) {
 						// EOF
 						break;
 					}
-					checkState("".equals(next), "unexpected: %s", next);
+
+					if (line.trim().isEmpty()) {
+						continue;
+
+					}
+
+					Matcher commitLineMatcher = commitLinePattern.matcher(line);
+					if (commitLineMatcher.matches()) {
+						currentAuthor = authorize(requireNonNull(commitLineMatcher.group("author"),
+								"commitLineMatcher.group(author)"));
+						continue;
+					}
+
+					Matcher fileStatMatcher = fileStatPattern.matcher(line);
+					if (fileStatMatcher.matches()) {
+						String path = fileStatMatcher.group("path");
+						if (!interestingFilePattern.matcher(path).matches()) {
+							// skip it
+							continue;
+						}
+						if ("-".equals(fileStatMatcher.group("added"))
+								|| "-".equals(fileStatMatcher.group("removed"))) {
+							System.err.println("Binary: " + line);
+							continue;
+						}
+
+						int added = parseInt(fileStatMatcher.group("added"));
+						int removed = parseInt(fileStatMatcher.group("removed"));
+
+						linesByAuthor.put(currentAuthor,
+								added - removed + linesByAuthor.getOrDefault(currentAuthor, 0L));
+
+						continue;
+					}
+
+					System.err.println("Unrecognized line: " + line);
 				}
 			}
-
-			linesByAuthor.entrySet().stream()
-					.sorted(Comparator.comparing(Entry::getValue))
-					.forEachOrdered(entry -> {
-						System.out.printf("%s: %d\n", entry.getKey(), entry.getValue());
-					});
 
 		} finally {
 			process.destroyForcibly();
 		}
+
+		linesByAuthor.entrySet().stream()
+				.sorted(Comparator.comparing(Entry::getValue))
+				.forEachOrdered(entry -> {
+					System.out.printf("%s: %d\n", entry.getKey(), entry.getValue());
+				});
+	}
+
+	/**
+	 * Normalize author name.
+	 */
+	// http://stackoverflow.com/a/15190787
+	private static String authorize(String authorName) {
+		authorName = Normalizer.normalize(authorName, Normalizer.Form.NFD);
+		authorName = authorName.replaceAll("\\p{InCombiningDiacriticalMarks}", "");
+		authorName = authorName.replace("Ł", "L");
+		authorName = authorName.replace("ł", "l");
+		authorName = Normalizer.normalize(authorName, Normalizer.Form.NFC);
+		return authorName;
 	}
 }
