@@ -38,15 +38,17 @@ public class MapRecursiveComputeIfAbsent
 
     public static void main(String[] args)
     {
-        test(HashMap::new, 1);
-        test(HashMap::new, 2);
-        test(HashMap::new, 5);
-        test(HashMap::new, 50);
-        test(HashMap::new, 200);
+        // results given for jdk1.8.0_121
 
-        test(ConcurrentHashMap::new, 1);
-        test(ConcurrentHashMap::new, 2);
-        test(ConcurrentHashMap::new, 5);
+        test(HashMap::new, 1); // OK
+        test(HashMap::new, 2); // OK
+        test(HashMap::new, 5); // wrong size of values' copy
+        test(HashMap::new, 50); // wrong size of values' copy
+        test(HashMap::new, 200); // wrong size of values' copy
+
+        test(ConcurrentHashMap::new, 1); // OK
+        test(ConcurrentHashMap::new, 2); // OK
+        test(ConcurrentHashMap::new, 3); // timeout
     }
 
     private static void test(Supplier<Map<Key, Integer>> mapSupplier, int depth)
