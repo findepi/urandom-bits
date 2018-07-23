@@ -31,6 +31,14 @@ public class JodaJdkZoneDrift
 {
     public static void main(String[] args)
     {
+        for (int year : new int[] {1884, 1883}) {
+            long nearYearStart = LocalDateTime.of(year, 1, 3, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1000;
+            System.out.printf("year %s\n", year);
+            System.out.printf("  %s\n", java.util.TimeZone.getTimeZone("America/New_York").getOffset(nearYearStart) / 1000);
+            System.out.printf("  %s\n", java.time.ZoneId.of("America/New_York").getRules().getOffset(Instant.ofEpochMilli(nearYearStart)).getTotalSeconds());
+            System.out.println();
+        }
+
         int step = 10;
         int startYear = LocalDate.now().getYear() / step * step;
         int endYear = 1700;
