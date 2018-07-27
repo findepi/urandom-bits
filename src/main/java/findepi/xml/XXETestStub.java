@@ -1,8 +1,11 @@
 package findepi.xml;
 
-import static java.lang.String.format;
-import static java.nio.charset.StandardCharsets.US_ASCII;
-import static java.util.concurrent.TimeUnit.SECONDS;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -14,13 +17,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testng.Assert;
-
-import com.google.common.base.Objects;
-import com.google.common.base.Strings;
-import com.google.common.base.Throwables;
+import static java.lang.String.format;
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * A test stub for testing against XML External Entities (XXE) vulnerability
@@ -74,7 +73,7 @@ public abstract class XXETestStub implements Runnable {
 				if (thrown != null) {
 					thrown.addSuppressed(e);
 				}
-				throw Objects.firstNonNull(thrown, e);
+				throw MoreObjects.firstNonNull(thrown, e);
 			}
 		}
 
