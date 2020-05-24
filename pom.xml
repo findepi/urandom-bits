@@ -12,6 +12,9 @@
     <artifactId>urandom-bits</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+    <properties>
+        <project.build.targetJdk>11</project.build.targetJdk>
+    </properties>
 
     <dependencies>
         <dependency>
