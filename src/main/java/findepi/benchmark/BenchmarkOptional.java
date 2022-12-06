@@ -13,6 +13,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -37,12 +38,14 @@ public class BenchmarkOptional
     {
         private List<Optional<Duration>> durations;
         private List<Optional<String>> strings;
+        private List<Optional<Instant>> instants;
 
         @Setup
         public void setup()
         {
             durations = new ArrayList<>(OPERATIONS_PER_INVOCATION);
             strings = new ArrayList<>(OPERATIONS_PER_INVOCATION);
+            instants = new ArrayList<>(OPERATIONS_PER_INVOCATION);
 
             for (int i = 0; i < OPERATIONS_PER_INVOCATION; i++) {
                 durations.add(
@@ -53,6 +56,10 @@ public class BenchmarkOptional
                 strings.add(
                         ThreadLocalRandom.current().nextDouble() < 0.9
                                 ? Optional.of(Integer.toString(i))
+                                : Optional.empty());
+                instants.add(
+                        ThreadLocalRandom.current().nextDouble() < 0.9
+                                ? Optional.of(Instant.ofEpochMilli(i))
                                 : Optional.empty());
             }
         }
@@ -126,6 +133,40 @@ public class BenchmarkOptional
     {
         return string
                 .orElseGet(() -> TimeZone.getDefault().getID());
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATIONS_PER_INVOCATION)
+    public long orElseInstantNow(BenchmarkData data)
+    {
+        long sum = 0;
+        for (Optional<Instant> instant : data.instants) {
+            sum += instantNowWithOrElse(instant).getEpochSecond();
+        }
+        return sum;
+    }
+
+    private Instant instantNowWithOrElse(Optional<Instant> instant)
+    {
+        return instant
+                .orElse(Instant.now());
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATIONS_PER_INVOCATION)
+    public long orElseGetInstantNow(BenchmarkData data)
+    {
+        long sum = 0;
+        for (Optional<Instant> instant : data.instants) {
+            sum += instantNowWithOrElseGet(instant).getEpochSecond();
+        }
+        return sum;
+    }
+
+    private Instant instantNowWithOrElseGet(Optional<Instant> instant)
+    {
+        return instant
+                .orElseGet(Instant::now);
     }
 
     public static void main(String[] args)
