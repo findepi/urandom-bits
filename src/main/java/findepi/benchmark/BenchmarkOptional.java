@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -34,17 +35,24 @@ public class BenchmarkOptional
     @State(Scope.Thread)
     public static class BenchmarkData
     {
-        private List<Optional<Duration>> optionals;
+        private List<Optional<Duration>> durations;
+        private List<Optional<String>> strings;
 
         @Setup
         public void setup()
         {
-            optionals = new ArrayList<>();
+            durations = new ArrayList<>(OPERATIONS_PER_INVOCATION);
+            strings = new ArrayList<>(OPERATIONS_PER_INVOCATION);
 
             for (int i = 0; i < OPERATIONS_PER_INVOCATION; i++) {
-                optionals.add(
+                durations.add(
                         ThreadLocalRandom.current().nextDouble() < 0.9
                                 ? Optional.of(Duration.ofMillis(i))
+                                : Optional.empty());
+
+                strings.add(
+                        ThreadLocalRandom.current().nextDouble() < 0.9
+                                ? Optional.of(Integer.toString(i))
                                 : Optional.empty());
             }
         }
@@ -55,7 +63,7 @@ public class BenchmarkOptional
     public long orElseDurationConstructor(BenchmarkData data)
     {
         long sum = 0;
-        for (Optional<Duration> duration : data.optionals) {
+        for (Optional<Duration> duration : data.durations) {
             sum += millisWithOrElse(duration);
         }
         return sum;
@@ -73,7 +81,7 @@ public class BenchmarkOptional
     public long orElseGetDurationConstructor(BenchmarkData data)
     {
         long sum = 0;
-        for (Optional<Duration> duration : data.optionals) {
+        for (Optional<Duration> duration : data.durations) {
             sum += millisWithOrElseGet(duration);
         }
         return sum;
@@ -86,6 +94,40 @@ public class BenchmarkOptional
                 .toMillis();
     }
 
+    @Benchmark
+    @OperationsPerInvocation(OPERATIONS_PER_INVOCATION)
+    public long orElseDefaultTimeZoneId(BenchmarkData data)
+    {
+        long sum = 0;
+        for (Optional<String> string : data.strings) {
+            sum += defaultTimeZoneIdWithOrElse(string).length();
+        }
+        return sum;
+    }
+
+    private String defaultTimeZoneIdWithOrElse(Optional<String> string)
+    {
+        return string
+                .orElse(TimeZone.getDefault().getID());
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATIONS_PER_INVOCATION)
+    public long orElseGetDefaultTimeZoneId(BenchmarkData data)
+    {
+        long sum = 0;
+        for (Optional<String> string : data.strings) {
+            sum += defaultTimeZoneIdWithOrElseGet(string).length();
+        }
+        return sum;
+    }
+
+    private String defaultTimeZoneIdWithOrElseGet(Optional<String> string)
+    {
+        return string
+                .orElseGet(() -> TimeZone.getDefault().getID());
+    }
+
     public static void main(String[] args)
             throws Exception
     {
@@ -94,7 +136,12 @@ public class BenchmarkOptional
         data.setup();
         new BenchmarkOptional().orElseDurationConstructor(data);
         new BenchmarkOptional().orElseGetDurationConstructor(data);
+        new BenchmarkOptional().orElseDefaultTimeZoneId(data);
+        new BenchmarkOptional().orElseGetDefaultTimeZoneId(data);
 
-        benchmark(BenchmarkOptional.class).run();
+        benchmark(BenchmarkOptional.class)
+                // Optional filters, e.g.
+                // .includeMethod(".*DefaultTimeZoneId")
+                .run();
     }
 }
